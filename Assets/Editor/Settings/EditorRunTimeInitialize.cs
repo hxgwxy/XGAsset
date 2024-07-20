@@ -4,7 +4,7 @@ using XGAsset.Editor.Load;
 using XGAsset.Editor.Other;
 using XGAsset.Runtime;
 using XGAsset.Runtime.Implement;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 using PlayMode = XGAsset.Runtime.PlayMode;
 
 namespace XGAsset.Editor.Settings

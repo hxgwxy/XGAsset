@@ -6,7 +6,7 @@ using UnityEditor.Build.Pipeline.Interfaces;
 using XGAsset.Editor.Build;
 using XGAsset.Runtime.Misc;
 
-namespace XGFramework.XGAsset.Editor.Build.Task
+namespace XGAsset.Editor.Build.Task
 {
     public class CopyToOutputFolder : IBuildTask
     {

@@ -8,8 +8,8 @@ using XGAsset.Editor.Build;
 using XGAsset.Editor.GUI.Base;
 using XGAsset.Editor.Settings;
 using XGAsset.Utility;
-using XGFramework.XGAsset.Editor.Build;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Build;
+using XGAsset.Editor.Settings;
 using PopupWindow = UnityEditor.PopupWindow;
 
 namespace XGAsset.Editor.GUI

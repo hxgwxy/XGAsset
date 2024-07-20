@@ -7,8 +7,8 @@ using XGAsset.Editor.Build;
 using XGAsset.Editor.GUI.Base;
 using XGAsset.Runtime.Misc;
 using XGAsset.Utility;
-using XGFramework.XGAsset.Editor.Build;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Build;
+using XGAsset.Editor.Settings;
 using Object = UnityEngine.Object;
 
 namespace XGAsset.Editor.GUI

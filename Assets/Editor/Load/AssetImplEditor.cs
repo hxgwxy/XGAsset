@@ -5,8 +5,8 @@ using XGAsset.Editor.Settings;
 using XGAsset.Runtime;
 using XGAsset.Runtime.Implement;
 using XGAsset.Runtime.Provider;
-using XGFramework.XGAsset.Editor.Load;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Load;
+using XGAsset.Editor.Settings;
 
 namespace XGAsset.Editor.Load
 {

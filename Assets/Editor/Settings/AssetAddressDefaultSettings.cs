@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using XGAsset.Editor.Build;
 using XGAsset.Utility;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 using Object = UnityEngine.Object;
 
 namespace XGAsset.Editor.Settings

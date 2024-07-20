@@ -8,7 +8,7 @@ using UnityEditor.Build.Pipeline;
 using UnityEditor.Build.Pipeline.Injector;
 using UnityEditor.Build.Pipeline.Interfaces;
 using XGAsset.Runtime.Misc;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
 namespace XGAsset.Editor.Build.Task
 {

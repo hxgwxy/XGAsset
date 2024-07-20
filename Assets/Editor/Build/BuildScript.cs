@@ -14,8 +14,8 @@ using XGAsset.Editor.Settings;
 using XGAsset.Runtime;
 using XGAsset.Runtime.Misc;
 using XGAsset.Utility;
-using XGFramework.XGAsset.Editor.Build.Task;
-using XGFramework.XGAsset.Editor.Other;
+using XGAsset.Editor.Build.Task;
+using XGAsset.Editor.Other;
 using BuildCompression = UnityEngine.BuildCompression;
 using Debug = UnityEngine.Debug;
 

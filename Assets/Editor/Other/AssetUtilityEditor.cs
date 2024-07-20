@@ -7,7 +7,7 @@ using UnityEditor.Build.Content;
 using XGAsset.Runtime.Misc;
 using Object = UnityEngine.Object;
 
-namespace XGFramework.XGAsset.Editor.Other
+namespace XGAsset.Editor.Other
 {
     public class AssetUtilityEditor
     {

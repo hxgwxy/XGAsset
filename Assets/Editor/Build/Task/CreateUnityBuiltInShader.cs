@@ -8,7 +8,7 @@ using UnityEditor.Build.Pipeline.Injector;
 using UnityEditor.Build.Pipeline.Interfaces;
 using UnityEngine;
 
-namespace XGFramework.XGAsset.Editor.Build.Task
+namespace XGAsset.Editor.Build.Task
 {
     public class CreateUnityBuiltInShader : IBuildTask
     {

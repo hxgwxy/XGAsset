@@ -4,9 +4,9 @@ using UnityEngine.SceneManagement;
 using XGAsset.Editor.Settings;
 using XGAsset.Runtime;
 using XGAsset.Runtime.Provider;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
-namespace XGFramework.XGAsset.Editor.Load
+namespace XGAsset.Editor.Load
 {
     public class EditorSceneProvider : AsyncOperationBase
     {

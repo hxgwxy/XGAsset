@@ -7,7 +7,7 @@ using UnityEditor.Build.Pipeline.Interfaces;
 using UnityEditor.Build.Pipeline.Utilities;
 using XGAsset.Editor.Build;
 
-namespace XGFramework.XGAsset.Editor.Build.Task
+namespace XGAsset.Editor.Build.Task
 {
     public class AppendHashToBundleName : IBuildTask
     {

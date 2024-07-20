@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEditor.Build.Pipeline.Interfaces;
 using XGAsset.Runtime.Misc;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
 namespace XGAsset.Editor.Build
 {

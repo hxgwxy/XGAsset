@@ -4,7 +4,7 @@ using UnityEngine;
 using XGAsset.Editor.Settings;
 using XGAsset.Runtime;
 using XGAsset.Runtime.Provider;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
 namespace XGAsset.Editor.Load
 {

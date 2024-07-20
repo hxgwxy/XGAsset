@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEditor;
 using XGAsset.Editor.Settings;
 using XGAsset.Utility;
-using XGFramework.XGAsset.Editor.Other;
+using XGAsset.Editor.Other;
 
 namespace XGAsset.Editor.Build
 {

@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using XGAsset.Utility;
 
-namespace XGFramework.XGAsset.Editor.Settings
+namespace XGAsset.Editor.Settings
 {
     [CreateAssetMenu(fileName = "AssetAddressResPackage", menuName = "XGAsset/Create AssetBundle Package Settings")]
     public class AssetAddressPackage : ScriptableObject

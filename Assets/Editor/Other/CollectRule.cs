@@ -1,7 +1,7 @@
 ﻿using System;
 using XGAsset.Utility;
 
-namespace XGFramework.XGAsset.Editor.Other
+namespace XGAsset.Editor.Other
 {
     public interface ICollectRule
     {

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace XGFramework.XGAsset.Editor.Settings
+namespace XGAsset.Editor.Settings
 {
     [Serializable]
     public class AssetAddressEntry

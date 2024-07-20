@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using XGAsset.Editor.GUI.Base;
 using XGAsset.Editor.Settings;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
 namespace XGAsset.Editor.GUI
 {

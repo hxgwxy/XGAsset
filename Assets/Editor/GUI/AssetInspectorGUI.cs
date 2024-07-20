@@ -2,8 +2,8 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using XGAsset.Editor.Settings;
-using XGFramework.XGAsset.Editor.Other;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Other;
+using XGAsset.Editor.Settings;
 using Object = UnityEngine.Object;
 
 namespace XGAsset.Editor.GUI

@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using XGAsset.Editor.Settings;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
-namespace XGFramework.XGAsset.Editor.Other
+namespace XGAsset.Editor.Other
 {
     public interface IAddressRule
     {

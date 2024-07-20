@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using XGFramework.XGAsset.Editor.Settings;
+using XGAsset.Editor.Settings;
 
 /// 分组信息，按照文件夹分组
 namespace XGAsset.Utility
