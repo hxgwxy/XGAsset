@@ -23,7 +23,7 @@ namespace XGAsset.Runtime
         }
     }
 
-    public class ResourcesManager
+    public static class ResourcesManager
     {
         private static Dictionary<string, ManifestData> packages = new Dictionary<string, ManifestData>();
         private static Dictionary<string, AddressInfoWrap> addressInfoWraps = new Dictionary<string, AddressInfoWrap>(10000);
@@ -169,7 +169,7 @@ namespace XGAsset.Runtime
 
         private static void CreateAssetProviderHandles(string address, List<IAsyncOperationBase> dependsOps)
         {
-            var list = ObjectPool.Get<List<AddressInfo>>();
+            var list = ReferencePool.Get<List<AddressInfo>>();
 
             GetAddressInfos(address, list);
 
@@ -184,7 +184,7 @@ namespace XGAsset.Runtime
                 dependsOps.Add(assetProvider);
             }
 
-            ObjectPool.Put(list, (a) => { a.Clear(); });
+            ReferencePool.Put(list, (a) => { a.Clear(); });
         }
 
         private static AsyncOperationBase InternalCreateAssetProviderHandle(AddressInfo info)
@@ -270,10 +270,10 @@ namespace XGAsset.Runtime
 
         public static AddressInfo GetAddressInfo(string address)
         {
-            var list = ObjectPool.Get<List<AddressInfo>>();
+            var list = ReferencePool.Get<List<AddressInfo>>();
             GetAddressInfos(address, list);
             var info = list.Count > 0 ? list[0] : null;
-            ObjectPool.Put<List<AddressInfo>>(list, infos => infos.Clear());
+            ReferencePool.Put<List<AddressInfo>>(list, infos => infos.Clear());
             return info;
         }
 

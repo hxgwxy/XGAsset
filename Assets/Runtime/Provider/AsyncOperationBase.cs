@@ -55,10 +55,6 @@ namespace XGAsset.Runtime.Provider
         public Exception Exception { get; }
 
         public int RefCount { get; }
-
-        // public void AddRef();
-        //
-        // public void DecRef();
     }
 
     public abstract class AsyncOperationBase : IAsyncOperationBase
@@ -77,9 +73,9 @@ namespace XGAsset.Runtime.Provider
 
         private int mRefCount;
 
-        protected AsyncOperation _asyncOperation;
+        protected AsyncOperation mAasyncOperation;
 
-        protected internal OperationStatus OperationStatus { get; set; }
+        protected OperationStatus OperationStatus { get; set; }
 
         protected object Asset
         {
@@ -137,7 +133,7 @@ namespace XGAsset.Runtime.Provider
                 return;
             }
 
-            var list = ObjectPool.Get<List<UniTask>>();
+            var list = ReferencePool.Get<List<UniTask>>();
             foreach (var op in DependOps)
             {
                 if (!op.IsDone)
@@ -149,7 +145,7 @@ namespace XGAsset.Runtime.Provider
             await UniTask.WhenAll(list);
 
             list.Clear();
-            ObjectPool.Put(list);
+            ReferencePool.Put(list);
         }
 
         protected virtual UniTask StartSelf()
@@ -203,10 +199,10 @@ namespace XGAsset.Runtime.Provider
         {
             get
             {
-                if (_asyncOperation != null)
+                if (mAasyncOperation != null)
                 {
-                    _asset = (_asyncOperation as AssetBundleCreateRequest)?.assetBundle; // 同步加载的关键
-                    if (_asyncOperation.isDone)
+                    _asset = (mAasyncOperation as AssetBundleCreateRequest)?.assetBundle; // 同步加载的关键
+                    if (mAasyncOperation.isDone)
                     {
                         OperationStatus = OperationStatus.Succeeded;
                     }

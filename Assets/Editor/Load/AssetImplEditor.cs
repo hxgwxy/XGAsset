@@ -56,7 +56,6 @@ namespace XGAsset.Editor.Load
 
         public override void Unload()
         {
-            
         }
     }
 }

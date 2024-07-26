@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using XGAsset.Runtime.Component;
 using XGAsset.Runtime.Misc;
 using XGAsset.Runtime.Pool;
 using XGAsset.Runtime.Provider;
@@ -12,6 +13,11 @@ namespace XGAsset.Runtime
     public struct AssetOperationHandle
     {
         private AsyncOperationBase op;
+
+        public AssetOperationHandle(AsyncOperationBase op) : this()
+        {
+            this.op = op;
+        }
 
         public bool IsDone => op?.IsDone ?? true;
 
@@ -51,11 +57,6 @@ namespace XGAsset.Runtime
 
         public Exception Exception => op.Exception;
 
-        public AssetOperationHandle(AsyncOperationBase op) : this()
-        {
-            this.op = op;
-        }
-
         public event Action<AssetOperationHandle> Completed
         {
             add => op.Completed += value;
@@ -64,7 +65,7 @@ namespace XGAsset.Runtime
 
         public ProgressStatus GetProgressStatus()
         {
-            var set = ObjectPool.Get<HashSet<ProgressStatus>>();
+            var set = ReferencePool.Get<HashSet<ProgressStatus>>();
             op.GetProgressStatusSet(set);
 
             ulong totalBytes = 0;
@@ -79,7 +80,7 @@ namespace XGAsset.Runtime
             }
 
             set.Clear();
-            ObjectPool.Put(set);
+            ReferencePool.Put(set);
 
             return new ProgressStatus()
             {
@@ -96,28 +97,28 @@ namespace XGAsset.Runtime
 
         public void AutoRelease(GameObject bindObj)
         {
-            if (!bindObj.TryGetComponent<GameObjDestroyListener>(out var comp))
+            if (!bindObj.TryGetComponent<GameObjectDestroyListener>(out var comp))
             {
-                comp = bindObj.AddComponent<GameObjDestroyListener>();
+                comp = bindObj.AddComponent<GameObjectDestroyListener>();
             }
 
-            comp.Destroy += Release;
+            comp.DestroyEvent += Release;
         }
 
         internal void AddRef()
         {
-            var set = ObjectPool.Get<HashSet<int>>();
+            var set = ReferencePool.Get<HashSet<int>>();
             op?.AddRef(set);
             set.Clear();
-            ObjectPool.Put(set);
+            ReferencePool.Put(set);
         }
 
         internal void DecRef()
         {
-            var set = ObjectPool.Get<HashSet<int>>();
+            var set = ReferencePool.Get<HashSet<int>>();
             op?.DecRef(set);
             set.Clear();
-            ObjectPool.Put(set);
+            ReferencePool.Put(set);
         }
 
         public void AwaitSync()

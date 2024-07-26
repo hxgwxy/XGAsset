@@ -149,7 +149,7 @@ namespace XGAsset.Runtime.Provider
             }
 #else
             var request = AssetBundle.LoadFromFileAsync(_localFile, 0);
-            _asyncOperation = request;
+            mAasyncOperation = request;
             if (request.isDone)
             {
                 LoadBundleCompleted(request.assetBundle);
@@ -177,7 +177,7 @@ namespace XGAsset.Runtime.Provider
                 return;
             }
 
-            var list = ObjectPool.Get<List<UniTask>>();
+            var list = ReferencePool.Get<List<UniTask>>();
             foreach (var op in DependOps)
             {
                 if (!op.IsDone)
@@ -189,7 +189,7 @@ namespace XGAsset.Runtime.Provider
             await UniTask.WhenAll(list);
 
             list.Clear();
-            ObjectPool.Put(list);
+            ReferencePool.Put(list);
         }
 
         private bool ValidFile(string path)

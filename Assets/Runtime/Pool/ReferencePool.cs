@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace XGAsset.Runtime.Pool
 {
-    public static class ObjectPool
+    internal static class ReferencePool
     {
         private static Dictionary<Type, Queue<object>> QueuePool = new Dictionary<Type, Queue<object>>();
 
