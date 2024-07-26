@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using LitJson;
 using UnityEditor;
 using UnityEditor.Build.Content;
 using UnityEditor.Build.Pipeline;
@@ -9,6 +8,7 @@ using UnityEditor.Build.Pipeline.Injector;
 using UnityEditor.Build.Pipeline.Interfaces;
 using XGAsset.Runtime.Misc;
 using XGAsset.Editor.Settings;
+using XGFramework.LitJson;
 
 namespace XGAsset.Editor.Build.Task
 {
