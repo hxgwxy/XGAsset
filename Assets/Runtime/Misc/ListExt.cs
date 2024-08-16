@@ -15,8 +15,8 @@ namespace XGAsset.Runtime.Misc
         {
             return enumerable.ToList().Sort2List();
         }
-        
-        public static List<T> ToRefList<T>(this IEnumerable<T> enumerable, List<T> list = null, bool clear = true)
+
+        public static List<T> ToRefList<T>(this IEnumerable<T> enumerable, List<T> list = null)
         {
             list ??= new List<T>();
             list.Clear();

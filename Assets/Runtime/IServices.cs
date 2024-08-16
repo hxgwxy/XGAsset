@@ -22,6 +22,7 @@ namespace XGAsset.Runtime
     {
         public UniTask<string> QueryAsset(string packageName, string fileName, bool forceCopy = false);
         public string GetPersistentPath(string packageName, string fileName);
+        public string GetStreamingAssetsPath(string packageName, string fileName);
     }
 
     public interface IDownloadServices

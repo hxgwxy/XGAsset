@@ -21,6 +21,7 @@ namespace XGAsset.Runtime.Pool
                 return;
             (value as IDictionary)?.Clear();
             (value as ICollection<T>)?.Clear();
+            (value as IList)?.Clear();
             recycleAction?.Invoke(value);
             var queue = GetOrAddQueue<T>();
             if (!queue.Contains(value))

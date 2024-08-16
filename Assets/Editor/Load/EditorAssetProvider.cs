@@ -17,23 +17,27 @@ namespace XGAsset.Editor.Load
             _address = address;
         }
 
-        protected override UniTask StartSelf()
+        protected override void ProcessDependsCompleted()
         {
             var entry = AssetAddressDefaultSettings.GetEntry(_address);
             if (entry != null)
             {
-                var asset = AssetDatabase.LoadAssetAtPath(entry.AssetPath, typeof(UnityEngine.Object));
-                if (asset == null)
+                SetAsset(AssetDatabase.LoadAssetAtPath(entry.AssetPath, typeof(UnityEngine.Object)));
+                if (Asset == null)
                 {
                     Debug.LogError($"资源不存在 {_address}");
+                    CompleteFailure();
+                }
+                else
+                {
+                    CompleteSuccess();
                 }
             }
             else
             {
                 Debug.LogError($"无法找到地址:{_address}");
+                CompleteFailure();
             }
-
-            return UniTask.CompletedTask;
         }
 
         public override UniTask<T> GetAssetAsync<T>()

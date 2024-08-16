@@ -26,7 +26,7 @@ namespace XGAsset.Runtime.Implement
             return handle;
         }
 
-        public override AssetOperationHandle LoadAssets(IList<string> address)
+        public override AssetOperationHandle LoadAssets(List<string> address)
         {
             var handle = ResourcesManager.CreateAssetHandle(address);
             handle.AddRef();

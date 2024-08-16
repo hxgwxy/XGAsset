@@ -26,11 +26,11 @@ namespace XGAsset.Runtime
     public static class ResourcesManager
     {
         private static Dictionary<string, ManifestData> packages = new Dictionary<string, ManifestData>();
-        private static Dictionary<string, AddressInfoWrap> addressInfoWraps = new Dictionary<string, AddressInfoWrap>(10000);
-        private static Dictionary<string, BundleInfo> bundleInfos = new Dictionary<string, BundleInfo>();
-        private static Dictionary<string, BundleProvider> bundleProviders = new Dictionary<string, BundleProvider>();
-        private static Dictionary<string, AssetProvider> assetProviders = new Dictionary<string, AssetProvider>();
-        private static Dictionary<string, SceneProvider> sceneProviders = new Dictionary<string, SceneProvider>();
+        private static Dictionary<string, AddressInfoWrap> addressInfoWraps = new Dictionary<string, AddressInfoWrap>(200);
+        private static Dictionary<string, BundleInfo> bundleInfos = new Dictionary<string, BundleInfo>(10);
+        private static Dictionary<string, BundleProvider> bundleProviders = new Dictionary<string, BundleProvider>(10);
+        private static Dictionary<string, AssetProvider> assetProviders = new Dictionary<string, AssetProvider>(10);
+        private static Dictionary<string, SceneProvider> sceneProviders = new Dictionary<string, SceneProvider>(10);
 
 #if UNITY_EDITOR
         internal static Dictionary<string, AddressInfoWrap> AddressInfoWraps => addressInfoWraps;
@@ -44,7 +44,6 @@ namespace XGAsset.Runtime
         public static IHostServices HostServices = new HostServices();
         public static IBuildInQueryServices BuildInQueryServices = new BuildInQueryServices();
         public static IDownloadServices DownloadServices = new DownloadServices();
-        public static ILoaderServices LoaderServices = new LoaderServices();
 
         public static AssetOperationHandle AddPackage(string packageName, string version, bool ignoreCache)
         {
@@ -118,14 +117,9 @@ namespace XGAsset.Runtime
 
         public static AssetOperationHandle CreateSceneHandle(string sceneName, LoadSceneMode mode)
         {
-            var packageName = GetAssetPackageName(sceneName);
-
             if (!sceneProviders.TryGetValue(sceneName, out var provider))
             {
-                provider = new SceneProvider(sceneName, mode)
-                {
-                    DependOps = CreateBundleProvider(packageName, sceneName)
-                };
+                provider = new SceneProvider(sceneName, mode);
                 sceneProviders.Add(sceneName, provider);
             }
 
@@ -136,104 +130,51 @@ namespace XGAsset.Runtime
 
         public static AssetOperationHandle CreateAssetHandle(string address)
         {
-            var dependOps = new List<IAsyncOperationBase>();
-            CreateAssetProviderHandles(address, dependOps);
-
-            if (dependOps.Count > 0)
-            {
-                var op = dependOps[0];
-                var handle = new AssetOperationHandle(op as AsyncOperationBase);
-                op.Start();
-                return handle;
-            }
-
-            return new AssetOperationHandle();
+            var provider = CreateAssetProvider(address);
+            var handle = new AssetOperationHandle(provider);
+            provider.Start();
+            return handle;
         }
 
         public static AssetOperationHandle CreateAssetHandle(IList<string> address)
         {
-            var dependOps = new List<IAsyncOperationBase>();
-            foreach (var addr in address)
-            {
-                CreateAssetProviderHandles(addr, dependOps);
-            }
-
-            var batchOp = new BatchProvider
-            {
-                DependOps = dependOps
-            };
-            var handle = new AssetOperationHandle(batchOp);
-            batchOp.Start();
+            var provider = new BatchAssetsProvider(address);
+            var handle = new AssetOperationHandle(provider);
+            provider.Start();
             return handle;
         }
 
-        private static void CreateAssetProviderHandles(string address, List<IAsyncOperationBase> dependsOps)
+        internal static AsyncOperationBase CreateAssetProvider(string address)
         {
-            var list = ReferencePool.Get<List<AddressInfo>>();
-
-            GetAddressInfos(address, list);
-
-            if (list.Count == 0)
-            {
-                Debug.LogError($"无法找到地址:{address}");
-            }
-
-            foreach (var addressInfo in list)
-            {
-                var assetProvider = InternalCreateAssetProviderHandle(addressInfo);
-                dependsOps.Add(assetProvider);
-            }
-
-            ReferencePool.Put(list, (a) => { a.Clear(); });
-        }
-
-        private static AsyncOperationBase InternalCreateAssetProviderHandle(AddressInfo info)
-        {
+            var info = GetAddressInfo(address);
             if (!assetProviders.TryGetValue(info.Address, out var provider))
             {
-                provider = new AssetProvider(info)
-                {
-                    DependOps = CreateBundleProvider(info.PackageName, info.Address)
-                };
+                provider = new AssetProvider(info);
                 assetProviders.Add(info.Address, provider);
             }
 
             return provider;
         }
 
-        private static List<IAsyncOperationBase> CreateBundleProvider(string packageName, string address)
+        internal static List<AsyncOperationBase> CreateAssetProviders(string address)
         {
-            var bundleInfo = GetBundleInfoByAddress(address);
-            if (bundleInfo != null)
+            var infos = GetAddressInfos(address);
+            var list = new List<AsyncOperationBase>();
+            foreach (var info in infos)
             {
-                var op = InternalCreateBundleProvider(packageName, bundleInfo.Name);
-                op.DependOps ??= CreateBundleDependProvider(packageName, bundleInfo.Name);
-
-                return new List<IAsyncOperationBase>() { op };
-            }
-
-            return null;
-        }
-
-        private static List<IAsyncOperationBase> CreateBundleDependProvider(string packageName, string bundleName)
-        {
-            var list = new List<string>() { };
-            GetDependentAssetBundle(bundleName, list);
-            list.Remove(bundleName);
-            var providers = new List<IAsyncOperationBase>();
-
-            if (list.Count > 0)
-            {
-                foreach (var depName in list)
+                if (!assetProviders.TryGetValue(info.Address, out var provider))
                 {
-                    providers.Add(InternalCreateBundleProvider(packageName, depName));
+                    provider = new AssetProvider(info);
+                    assetProviders.Add(info.Address, provider);
                 }
+
+                list.Add(provider);
             }
 
-            return providers;
+            return list;
         }
 
-        private static IAsyncOperationBase InternalCreateBundleProvider(string packageName, string bundleName)
+        internal static AsyncOperationBase CreateBundleProvider(string packageName, string bundleName)
         {
             if (!bundleProviders.TryGetValue(bundleName, out var bundleProvider))
             {
@@ -244,41 +185,48 @@ namespace XGAsset.Runtime
             return bundleProvider;
         }
 
-        private static string GetAssetPackageName(string address)
+        internal static List<IAsyncOperationBase> CreateDependBundleProvider(string packageName, string bundleName)
         {
-            return GetAddressInfo(address)?.PackageName ?? string.Empty;
+            var hashSet = ReferencePool.Get<HashSet<string>>();
+            GetDependentAssetBundle(bundleName, hashSet);
+            hashSet.Remove(bundleName);
+            var providers = new List<IAsyncOperationBase>();
+            foreach (var depName in hashSet)
+            {
+                providers.Add(CreateBundleProvider(packageName, depName));
+            }
+
+            return providers;
         }
 
-        private static void GetDependentAssetBundle(string bundleName, in List<string> list)
+        private static void GetDependentAssetBundle(string bundleName, HashSet<string> hashSet)
         {
             var bundleInfo = GetBundleInfo(bundleName);
 
-            if (bundleInfo == null)
+            if (bundleInfo != null)
             {
-                return;
-            }
-
-            foreach (var dep in bundleInfo.Dependencies)
-            {
-                if (!list.Contains(dep))
+                foreach (var dep in bundleInfo.Dependencies)
                 {
-                    list.Add(dep);
-                    GetDependentAssetBundle(dep, list);
+                    if (!hashSet.Contains(dep))
+                    {
+                        hashSet.Add(dep);
+                        GetDependentAssetBundle(dep, hashSet);
+                    }
                 }
             }
         }
 
         public static AddressInfo GetAddressInfo(string address)
         {
-            var list = ReferencePool.Get<List<AddressInfo>>();
-            GetAddressInfos(address, list);
+            var list = GetAddressInfos(address);
             var info = list.Count > 0 ? list[0] : null;
-            ReferencePool.Put<List<AddressInfo>>(list, infos => infos.Clear());
+            ReferencePool.Put(list);
             return info;
         }
 
-        private static void GetAddressInfos(string address, List<AddressInfo> list)
+        private static List<AddressInfo> GetAddressInfos(string address)
         {
+            var list = ReferencePool.Get<List<AddressInfo>>();
             if (addressInfoWraps.ContainsKey(address))
             {
                 if (addressInfoWraps[address].IsArray)
@@ -293,6 +241,8 @@ namespace XGAsset.Runtime
                     list.Add(addressInfoWraps[address].AddressInfo);
                 }
             }
+
+            return list;
         }
 
         internal static BundleInfo GetBundleInfo(string bundleName)
@@ -300,20 +250,6 @@ namespace XGAsset.Runtime
             bundleInfos.TryGetValue(bundleName, out var bundleInfo);
             return bundleInfo;
         }
-
-        private static BundleInfo GetBundleInfoByAddress(string address)
-        {
-            var addressInfo = GetAddressInfo(address);
-            return addressInfo != null ? bundleInfos[addressInfo.BundleName] : null;
-        }
-
-        // private static void InternalUnload( Dictionary<string, IAsyncOperationBase> providers)
-        // {
-        //     foreach (var provider in providers)
-        //     {
-        //         ((AsyncOperationBase) provider.Value).Unload();
-        //     }
-        // }
 
         public static void Unload()
         {

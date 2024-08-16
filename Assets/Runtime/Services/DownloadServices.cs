@@ -10,21 +10,13 @@ using XGAsset.Runtime.Misc;
 
 namespace XGAsset.Runtime.Services
 {
-    internal enum DownloadStatus
-    {
-        Pending,
-        Processing,
-        Finish,
-        Retry,
-    }
-
     public interface IDownloadTask : IDisposable
     {
+        public AsyncOperation AsyncOperation { get; set; }
         public float Percent { get; }
         public ulong DownloadBytes { get; }
         public ulong TotalBytes { get; }
-        public UniTask WaitCompleted();
-        public event Action<IDownloadTask> Completed;
+        public Action<IDownloadTask> Completed { get; set; }
         public bool Success { get; }
         public string ErrorMsg { get; }
         public string LocalPath { get; }
@@ -34,93 +26,65 @@ namespace XGAsset.Runtime.Services
         public void SetCrc32(string crc32);
     }
 
-
-    internal class DownloadTask : IDownloadTask
+    public class DownloadServices : IDownloadServices
     {
-        private UniTaskCompletionSource source;
-        private Action<IDownloadTask> _complete;
-
-        public string Url;
-        public string Error;
-        public int Priority;
-        public ulong BeginBytes;
-        public DownloadStatus Status;
-        public UnityWebRequest Request;
-
-        public int MaxRetry = 5;
-        public int Retry = 0;
-
-        public float Percent => 1f * DownloadBytes / TotalBytes;
-
-        public ulong DownloadBytes { get; set; }
-        public ulong TotalBytes { get; set; }
-        public string MD5;
-        public string CRC32;
-
-        public event Action<IDownloadTask> Completed
+        public enum DownloadStatus
         {
-            add
-            {
-                if (Status == DownloadStatus.Finish)
-                    value?.Invoke(this);
-                else
-                    _complete += value;
-            }
-            remove => _complete -= value;
+            Pending,
+            Processing,
+            Finish,
+            Retry,
         }
 
-        public bool Success { get; set; }
-
-        public string ErrorMsg { get; set; }
-        public string LocalPath { get; set; }
-
-        public void Abort()
-        {
-            Request?.Abort();
-            Status = DownloadStatus.Finish;
-        }
-
-        public void SetTotalBytes(ulong size)
-        {
-            TotalBytes = size;
-        }
-
-        public void SetMD5(string md5)
-        {
-            MD5 = md5;
-        }
-
-        public void SetCrc32(string crc32)
-        {
-            CRC32 = crc32;
-        }
-
-        public string TempLocalPath => LocalPath + ".temp";
-
-        public UniTask WaitCompleted()
-        {
-            source ??= new UniTaskCompletionSource();
-            return source.Task;
-        }
-
-        public void SetCompleted()
-        {
-            Status = DownloadStatus.Finish;
-            _complete?.Invoke(this);
-            source?.TrySetResult();
-        }
-
-        public void Dispose()
-        {
-        }
-    }
-
-    internal class DownloadServices : IDownloadServices
-    {
-        private List<DownloadTask> _downloadTasks = new List<DownloadTask>();
+        private List<DownloadTaskHandle> _downloadTasks = new List<DownloadTaskHandle>();
         private int _downloadCount;
         private int _maxDownload = 3;
         private bool _running;
+
+        public class DownloadTaskHandle : IDownloadTask
+        {
+            internal string MD5;
+            internal string CRC32;
+            public int MaxRetry = 5;
+            public int Retry = 0;
+            public AsyncOperation AsyncOperation { get; set; }
+            public string Url;
+            public string LocalPath { get; set; }
+            public DownloadStatus Status;
+            public string TempLocalPath => LocalPath + ".temp";
+            public UnityWebRequest Request;
+            public float Percent => 1f * DownloadBytes / TotalBytes;
+            public ulong BeginBytes;
+            public ulong DownloadBytes { get; set; }
+            public ulong TotalBytes { get; internal set; }
+            public Action<IDownloadTask> Completed { get; set; }
+            public bool Success { get; set; }
+            public string ErrorMsg { get; set; }
+
+            public void SetMD5(string md5)
+            {
+                MD5 = md5;
+            }
+
+            public void SetCrc32(string crc32)
+            {
+                CRC32 = crc32;
+            }
+
+            public void Abort()
+            {
+                throw new NotImplementedException();
+            }
+
+            public void SetTotalBytes(ulong size)
+            {
+                TotalBytes = size;
+            }
+
+            public void Dispose()
+            {
+            }
+        }
 
         public IDownloadTask DownloadFile(string url, string localPath)
         {
@@ -128,7 +92,7 @@ namespace XGAsset.Runtime.Services
 
             if (existsTask == null)
             {
-                var task = new DownloadTask()
+                var task = new DownloadTaskHandle()
                 {
                     Url = url,
                     LocalPath = localPath,
@@ -142,109 +106,91 @@ namespace XGAsset.Runtime.Services
             return existsTask;
         }
 
-        private async void RunTask()
+        private void RunTask()
         {
-            if (_running)
+            var processCount = 0;
+            foreach (var task in _downloadTasks)
             {
-                if (_downloadTasks.Any(v => v.Status != DownloadStatus.Pending))
+                if (task.Status == DownloadStatus.Processing)
+                {
+                    processCount += 1;
+                }
+
+                if (processCount >= _maxDownload)
                 {
                     return;
                 }
             }
 
-            _running = true;
-            while (_downloadTasks.Count > 0)
+            var pendingTask = _downloadTasks.Find(v => v.Status == DownloadStatus.Pending);
+            if (pendingTask != null)
             {
-                while (_downloadCount < _maxDownload)
-                {
-                    var pendingTask = _downloadTasks.Find(v => v.Status == DownloadStatus.Pending);
-                    if (pendingTask == null)
-                    {
-                        break;
-                    }
-
-                    ExecTask(pendingTask);
-                    _downloadCount++;
-                }
-
-                await UniTask.NextFrame();
-
-                for (var i = _downloadTasks.Count - 1; i >= 0; i--)
-                {
-                    var task = _downloadTasks[i];
-                    if (task.Status == DownloadStatus.Finish)
-                    {
-                        _downloadCount--;
-                        _downloadTasks.RemoveAt(i);
-                    }
-                }
+                pendingTask.Status = DownloadStatus.Processing;
+                ExecTask(pendingTask);
             }
-
-            _running = false;
         }
 
-        private async void ExecTask(DownloadTask task)
+        private void ExecTask(DownloadTaskHandle task)
         {
-            if (task.Status == DownloadStatus.Finish)
-            {
-                return;
-            }
-
             var url = task.Url;
-            var localPath = task.LocalPath;
-
-            using var request = UnityWebRequest.Get(url);
-
-            ulong beginByte = 0;
+            var request = UnityWebRequest.Get(url);
+            ulong beginBytes = 0;
             if (File.Exists(task.TempLocalPath))
             {
-                beginByte = (ulong)(new FileInfo(task.TempLocalPath).Length);
+                beginBytes = (ulong)(new FileInfo(task.TempLocalPath).Length);
             }
 
             task.Request = request;
             task.DownloadBytes = 0;
-            task.BeginBytes = beginByte;
-
+            task.BeginBytes = beginBytes;
             request.downloadHandler = new DownloadHandlerFile(task.TempLocalPath, true);
             request.disposeDownloadHandlerOnDispose = true;
-            if (beginByte > 0)
-                request.SetRequestHeader("Range", $"bytes={beginByte}-");
-
-            var operation = request.SendWebRequest();
-
-            task.Status = DownloadStatus.Processing;
-
-            // Debug.Log($"<color=#00F5FF>下载: {url}</color>");
-            Debug.Log($"下载: {url}");
-
-            while (!operation.isDone)
+            if (beginBytes > 0)
             {
-                SetDownloadTotalBytes(task);
-                await UniTask.NextFrame();
+                request.SetRequestHeader("Range", $"bytes={beginBytes}-");
             }
 
-            SetDownloadTotalBytes(task);
-
-            ProcessTaskCompleted(task);
+            task.AsyncOperation = request.SendWebRequest();
+            task.Status = DownloadStatus.Processing;
+            task.AsyncOperation.completed += OnDownloadCompleted;
+            Debug.Log($"开始下载: {url}");
         }
 
-        private void ProcessTaskCompleted(DownloadTask task)
+        private void OnDownloadCompleted(AsyncOperation op)
+        {
+            if (op is UnityWebRequestAsyncOperation webRequestAsyncOperation)
+            {
+                var task = _downloadTasks.Find(v => v.Request == webRequestAsyncOperation.webRequest);
+                if (task != null)
+                {
+                    ProcessTaskCompleted(task);
+                }
+                else
+                {
+                    webRequestAsyncOperation.webRequest.Dispose();
+                }
+            }
+        }
+
+        private void ProcessTaskCompleted(DownloadTaskHandle task)
         {
             var request = task.Request;
+            var error = request.error;
+            var result = request.result;
+            var responseCode = request.responseCode;
+            var downloadedBytes = request.downloadedBytes;
+            request.Dispose();
 
+            task.DownloadBytes = task.BeginBytes + downloadedBytes;
             task.Request = null;
 
-            if (request.result == UnityWebRequest.Result.Success)
+            if (result == UnityWebRequest.Result.Success)
             {
-                // Debug.Log($"<color=#ff7500>下载完成: {task.Url}</color>");
-                Debug.Log($"下载完成: {task.Url}");
+                Debug.Log($"下载成功: {task.Url}");
 
                 if (ValidFile(task))
                 {
-                    File.Delete(task.LocalPath);
-                    File.Move(task.TempLocalPath, task.LocalPath);
-                    task.Success = true;
-                    task.SetCompleted();
+                    SetTaskSuccess(task);
                 }
                 else
                 {
@@ -253,30 +199,18 @@ namespace XGAsset.Runtime.Services
             }
             else
             {
-                var msg = $"下载失败 GET:{task.Url}, Error:{request.error}; Result:{request.result}; ResponseCode:{request.responseCode}";
+                var msg = $"下载失败 GET:{task.Url}, Error:{error}; Result:{result}; ResponseCode:{responseCode}";
                 Debug.LogError(msg);
 
-                switch (request.responseCode)
+                switch (responseCode)
                 {
-                    case 200:
-                        task.MaxRetry++;
-                        DelayAndRetry(task);
-                        break;
                     case 404:
-                        File.Delete(task.TempLocalPath);
-                        task.SetCompleted();
-                        break;
-                    case 503:
-                        _maxDownload = Math.Max(2, --_maxDownload);
-                        DelayAndRetry(task);
+                        SetTaskFailure(task);
                         break;
                     default:
                         if (ValidFile(task))
                         {
-                            File.Delete(task.LocalPath);
-                            File.Move(task.TempLocalPath, task.LocalPath);
-                            task.Success = true;
-                            task.SetCompleted();
+                            SetTaskSuccess(task);
                         }
                         else
                         {
@@ -288,51 +222,31 @@ namespace XGAsset.Runtime.Services
             }
         }
 
-        private void SetDownloadTotalBytes(DownloadTask task)
-        {
-            if (task.TotalBytes == 0)
-            {
-                long.TryParse(task.Request.GetResponseHeader("Content-Length"), out var fileSize);
-                if (fileSize > 0)
-                {
-                    task.TotalBytes = task.BeginBytes + (ulong)fileSize;
-                }
-            }
-
-            if (task.Request.downloadedBytes > 0)
-            {
-                task.DownloadBytes = task.BeginBytes + task.Request.downloadedBytes;
-            }
-        }
-
-        private async void DelayAndRetry(DownloadTask task)
+        private void DelayAndRetry(DownloadTaskHandle task)
         {
             if (++task.Retry < task.MaxRetry)
             {
-                await UniTask.Delay(1000);
                 ExecTask(task);
             }
             else
             {
-                task.SetCompleted();
+                SetTaskFailure(task);
+                RunTask();
             }
         }
 
-        private bool ValidFile(DownloadTask task)
+        private bool ValidFile(DownloadTaskHandle task)
         {
-            if (task.TotalBytes > 0)
+            var fileSize = GetFileSize(task.TempLocalPath);
+            if (task.TotalBytes > 0 && task.TotalBytes != fileSize)
             {
-                var fileSize = GetFileSize(task.TempLocalPath);
-                if (task.TotalBytes != fileSize)
+                if (fileSize > task.TotalBytes)
                 {
-                    if (fileSize > task.TotalBytes)
-                    {
-                        File.Delete(task.TempLocalPath);
-                    }
-
-                    Debug.LogError($"文件字节数不正确:{task.TempLocalPath} - {fileSize} - {task.TotalBytes}");
-                    return false;
+                    File.Delete(task.TempLocalPath);
                 }
+
+                Debug.LogError($"文件字节数不正确:{task.TempLocalPath} - {fileSize} - {task.TotalBytes}");
+                return false;
             }
 
             if (!string.IsNullOrEmpty(task.CRC32))
@@ -346,8 +260,7 @@ namespace XGAsset.Runtime.Services
                     return false;
                 }
             }
-
-            if (!string.IsNullOrEmpty(task.MD5))
+            else if (!string.IsNullOrEmpty(task.MD5))
             {
                 var fileMD5 = AssetUtility.GetFileMD5(task.TempLocalPath);
                 var isValid = task.MD5.Equals(fileMD5);
@@ -367,12 +280,20 @@ namespace XGAsset.Runtime.Services
             return (ulong)(new FileInfo(filePath).Length);
         }
 
-        public void AbortAll()
+        private void SetTaskSuccess(DownloadTaskHandle task)
         {
-            foreach (var task in _downloadTasks)
-            {
-                task.Abort();
-            }
+            _downloadTasks.Remove(task);
+            File.Delete(task.LocalPath);
+            File.Move(task.TempLocalPath, task.LocalPath);
+            RunTask();
+            task.Success = true;
+            task.Completed.Invoke(task);
+        }
+
+        private void SetTaskFailure(DownloadTaskHandle task)
+        {
+            File.Delete(task.TempLocalPath);
+            task.Completed.Invoke(task);
         }
     }
 }

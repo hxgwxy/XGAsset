@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using XGAsset.Runtime.Pool;
@@ -15,7 +16,7 @@ namespace XGAsset.Runtime.Provider
         Pending,
 
         /// <summary>
-        /// 处理自身
+        /// 处理中
         /// </summary>
         Progress,
 
@@ -30,67 +31,79 @@ namespace XGAsset.Runtime.Provider
         Failure,
     }
 
-    public interface IAsyncOperationBase
-    {
-        public T GetAsset<T>();
-
-        public IList<T> GetAssets<T>();
-
-        public UniTask<T> GetAssetAsync<T>();
-
-        public UniTask<IList<T>> GetAssetsAsync<T>();
-
-        public bool IsDone { get; }
-
-        public string DebugInfo { get; }
-
-        public event Action<AssetOperationHandle> Completed;
-
-        public IList<IAsyncOperationBase> DependOps { get; set; }
-
-        public UniTask Task { get; }
-
-        public UniTask Start();
-
-        public Exception Exception { get; }
-
-        public int RefCount { get; }
-    }
 
     public abstract class AsyncOperationBase : IAsyncOperationBase
     {
-        private object _asset;
+        private object mAsset;
 
-        private UniTaskCompletionSource mSource;
+        protected UniTaskCompletionSource mSource;
 
-        private IList<IAsyncOperationBase> mDependOps;
+        private List<IAsyncOperationBase> mDependOps;
 
-        private Action<AssetOperationHandle> mComplete;
+        protected Action<AssetOperationHandle> mCompleted;
 
         private OperationStatus mOperationStatus;
 
-        private Exception mException;
+        protected Exception mException;
 
         private int mRefCount;
-
-        protected AsyncOperation mAasyncOperation;
 
         protected OperationStatus OperationStatus { get; set; }
 
         protected object Asset
         {
-            get => _asset;
-            set => _asset = value;
+            get => mAsset;
+            set => SetAsset(value);
+        }
+
+        public bool IsDone => (OperationStatus == OperationStatus.Succeeded || OperationStatus == OperationStatus.Failure);
+
+        public List<IAsyncOperationBase> DependOps
+        {
+            get => mDependOps;
+            set => mDependOps = value;
+        }
+
+        public UniTask Task
+        {
+            get
+            {
+                if (IsDone)
+                    return UniTask.CompletedTask;
+                mSource ??= new UniTaskCompletionSource();
+                return mSource.Task;
+            }
+        }
+
+        internal bool IsCanUnload { get; private set; }
+
+        public Exception Exception => mException;
+
+        public int RefCount => mRefCount;
+
+        public virtual string DebugInfo => $"{GetType().Name}";
+
+        public event Action<AssetOperationHandle> Completed
+        {
+            add
+            {
+                if (IsDone)
+                    value?.Invoke(new AssetOperationHandle(this));
+                else
+                    mCompleted += value;
+            }
+            remove => mCompleted -= value;
         }
 
         protected virtual ProgressStatus GetProgressStatus()
         {
-            return new ProgressStatus() { id = GetHashCode() };
+            return new ProgressStatus() { Id = GetHashCode() };
         }
 
         protected void SetAsset(object asset)
         {
-            _asset = asset;
+            mAsset = asset;
+            // Debug.Log($"operation complete {DebugInfo} {asset}");
         }
 
         internal void GetProgressStatusSet(HashSet<ProgressStatus> set)
@@ -109,48 +122,13 @@ namespace XGAsset.Runtime.Provider
             }
         }
 
-        #region public
-
-        public async UniTask Start()
+        public void Start()
         {
-            await StartDepends();
-            if (OperationStatus < OperationStatus.Progress)
+            if (OperationStatus == OperationStatus.Pending)
             {
                 OperationStatus = OperationStatus.Progress;
-                await StartSelf();
+                InternalStart();
             }
-
-            OperationStatus = OperationStatus.Succeeded;
-            mComplete?.Invoke(new AssetOperationHandle(this));
-            mSource?.TrySetResult();
-        }
-
-        protected virtual async UniTask StartDepends()
-        {
-            if (DependOps == null || DependOps.Count == 0)
-            {
-                await UniTask.CompletedTask;
-                return;
-            }
-
-            var list = ReferencePool.Get<List<UniTask>>();
-            foreach (var op in DependOps)
-            {
-                if (!op.IsDone)
-                {
-                    list.Add(op.Start());
-                }
-            }
-
-            await UniTask.WhenAll(list);
-
-            list.Clear();
-            ReferencePool.Put(list);
-        }
-
-        protected virtual UniTask StartSelf()
-        {
-            return UniTask.CompletedTask;
         }
 
         public virtual T GetAsset<T>()
@@ -158,7 +136,7 @@ namespace XGAsset.Runtime.Provider
             return (T)Convert.ChangeType(Asset, typeof(T));
         }
 
-        public virtual IList<T> GetAssets<T>()
+        public virtual List<T> GetAssets<T>()
         {
             if (DependOps != null)
             {
@@ -195,69 +173,6 @@ namespace XGAsset.Runtime.Provider
             return default;
         }
 
-        public bool IsDone
-        {
-            get
-            {
-                if (mAasyncOperation != null)
-                {
-                    _asset = (mAasyncOperation as AssetBundleCreateRequest)?.assetBundle; // 同步加载的关键
-                    if (mAasyncOperation.isDone)
-                    {
-                        OperationStatus = OperationStatus.Succeeded;
-                    }
-                }
-
-                if (DependOps != null)
-                {
-                    foreach (var op in DependOps)
-                    {
-                        if (!op.IsDone)
-                        {
-                            return false;
-                        }
-                    }
-                }
-
-                return (OperationStatus == OperationStatus.Succeeded || OperationStatus == OperationStatus.Failure);
-            }
-        }
-
-        public virtual string DebugInfo => $"{GetType().Name}";
-
-        public event Action<AssetOperationHandle> Completed
-        {
-            add
-            {
-                if (IsDone)
-                    value?.Invoke(new AssetOperationHandle(this));
-                else
-                    mComplete += value;
-            }
-            remove => mComplete -= value;
-        }
-
-        public IList<IAsyncOperationBase> DependOps
-        {
-            get => mDependOps;
-            set => mDependOps = value;
-        }
-
-        public UniTask Task
-        {
-            get
-            {
-                if (IsDone)
-                    return UniTask.CompletedTask;
-                mSource ??= new UniTaskCompletionSource();
-                return mSource.Task;
-            }
-        }
-
-        public Exception Exception => mException;
-
-        public int RefCount => mRefCount;
-
         public virtual void AddRef(HashSet<int> set)
         {
             if (set.Add(GetHashCode()))
@@ -288,8 +203,6 @@ namespace XGAsset.Runtime.Provider
             }
         }
 
-        internal bool IsCanUnload { get; private set; }
-
         public virtual void Unload()
         {
             if (mRefCount <= 0)
@@ -298,6 +211,91 @@ namespace XGAsset.Runtime.Provider
             }
         }
 
-        #endregion
+        public void WaitForCompleted()
+        {
+            if (!IsDone)
+            {
+                if (DependOps != null)
+                {
+                    foreach (var dependOp in DependOps)
+                    {
+                        dependOp.WaitForCompleted();
+                    }
+                }
+
+                InternalWaitForCompleted();
+            }
+        }
+
+        protected virtual void InternalWaitForCompleted()
+        {
+        }
+
+        protected virtual void InternalStart()
+        {
+            StartDepends();
+        }
+
+        protected void StartDepends()
+        {
+            if (DependOps?.Count > 0)
+            {
+                var depends = 0;
+                foreach (var op in DependOps)
+                {
+                    if (!op.IsDone)
+                    {
+                        depends++;
+                        op.Completed += OnDependCompleted;
+                        op.Start();
+                    }
+                }
+                if (depends == 0)
+                {
+                    ProcessDependsCompleted();
+                }
+            }
+            else
+            {
+                ProcessDependsCompleted();
+            }
+        }
+
+        private void OnDependCompleted(AssetOperationHandle handle)
+        {
+            if (DependOps?.Count > 0)
+            {
+                foreach (var op in DependOps)
+                {
+                    if (!op.IsDone)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            ProcessDependsCompleted();
+        }
+
+        protected virtual void ProcessDependsCompleted()
+        {
+            CompleteSuccess();
+        }
+
+        protected virtual void CompleteFailure()
+        {
+            OperationStatus = OperationStatus.Failure;
+            mCompleted?.Invoke(new AssetOperationHandle(this));
+            mSource?.TrySetResult();
+            mCompleted = null;
+        }
+
+        protected virtual void CompleteSuccess()
+        {
+            OperationStatus = OperationStatus.Succeeded;
+            mCompleted?.Invoke(new AssetOperationHandle(this));
+            mSource?.TrySetResult();
+            mCompleted = null;
+        }
     }
 }

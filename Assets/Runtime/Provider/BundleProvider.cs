@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 using XGAsset.Runtime.Misc;
 using XGAsset.Runtime.Pool;
 using XGAsset.Runtime.Services;
@@ -16,11 +18,12 @@ namespace XGAsset.Runtime.Provider
     {
         private string _bundleName;
         private string _packageName;
-        private string _fileName;
-        private string _localFile;
         private IDownloadTask _bundleTask;
         private BundleInfo _bundleInfo;
         private UniTaskCompletionSource _source;
+        private AsyncOperation _loadBuiltInOperation;
+        private AsyncOperation _downloadOperation;
+        private AsyncOperation _loadBundledOperation;
 
         private ulong DownloadBytes
         {
@@ -51,6 +54,7 @@ namespace XGAsset.Runtime.Provider
                 IsValid = true,
                 CompletedBytes = DownloadBytes,
                 TotalBytes = TotalBytes,
+                Percent = TotalBytes == 0 ? 0 : (float)DownloadBytes / (float)TotalBytes
             };
         }
 
@@ -60,171 +64,84 @@ namespace XGAsset.Runtime.Provider
         {
             _packageName = packageName;
             _bundleName = bundleName;
-            _fileName = bundleName;
             _bundleInfo = ResourcesManager.GetBundleInfo(_bundleName);
+            DependOps = ResourcesManager.CreateDependBundleProvider(packageName, bundleName);
         }
 
-        protected override async UniTask StartSelf()
+        protected override void InternalStart()
         {
-#if UNITY_WEBGL && !UNITY_EDITOR
-            StartDownload();
-#else
-            var path = await ResourcesManager.BuildInQueryServices.QueryAsset(_packageName, _fileName);
-            if (string.IsNullOrEmpty(path))
+            var path = ResourcesManager.BuildInQueryServices.GetPersistentPath(_packageName, _bundleName);
+            _bundleInfo = ResourcesManager.GetBundleInfo(_bundleName);
+
+            if (File.Exists(path))
+                LoadFromFile(path);
+            else
+                LoadFromBuiltId();
+        }
+
+        private void LoadFromBuiltId()
+        {
+            var streamingPath = ResourcesManager.BuildInQueryServices.GetStreamingAssetsPath(_packageName, _bundleName);
+            var request = UnityWebRequestAssetBundle.GetAssetBundle(streamingPath);
+            _loadBuiltInOperation = request.SendWebRequest();
+            _loadBuiltInOperation.completed += OnLoadFromBuiltIdComplete;
+        }
+
+        private void OnLoadFromBuiltIdComplete(AsyncOperation op)
+        {
+            if (op is UnityWebRequestAsyncOperation asyncOperation)
             {
-                var retry = 3;
-                while (retry-- > 0)
+                if (string.IsNullOrEmpty(asyncOperation.webRequest.error))
                 {
-                    if (await StartDownload())
-                    {
-                        break;
-                    }
+                    SetAsset(DownloadHandlerAssetBundle.GetContent(asyncOperation.webRequest));
+                    StartDepends();
+                }
+                else
+                {
+                    LoadFromDownload();
                 }
 
-                await LoadBundle();
+                asyncOperation.webRequest.Dispose();
             }
-            else
-            {
-                _localFile = path;
-                await LoadBundle();
-            }
-#endif
         }
 
-        private UniTask<bool> StartDownload()
+        private void LoadFromDownload()
         {
-#if UNITY_WEBGL && !UNITY_EDITOR
-            return UniTask.FromResult(true);
-#else
-            var path = ResourcesManager.BuildInQueryServices.GetPersistentPath(_packageName, _fileName);
-            var url = ResourcesManager.HostServices.GetMainUrl(_packageName, _fileName);
-            var source = new UniTaskCompletionSource<bool>();
-
-            void OnDownloadBundleCompleted(IDownloadTask task)
-            {
-                source.TrySetResult(ValidFile(_localFile));
-            }
-
+            var url = ResourcesManager.HostServices.GetMainUrl(_packageName, _bundleName);
+            var path = ResourcesManager.BuildInQueryServices.GetPersistentPath(_packageName, _bundleName);
             _bundleTask = ResourcesManager.DownloadServices.DownloadFile(url, path);
             _bundleTask.Completed -= OnDownloadBundleCompleted;
             _bundleTask.Completed += OnDownloadBundleCompleted;
-
             _bundleTask.SetCrc32(_bundleInfo.Crc);
             _bundleTask.SetMD5(_bundleInfo.MD5);
             _bundleTask.SetTotalBytes(_bundleInfo.Size);
-            _localFile = _bundleTask.LocalPath;
-            return source.Task;
-#endif
+            _downloadOperation = _bundleTask.AsyncOperation;
         }
 
-        private async UniTask LoadBundle()
+        private void OnDownloadBundleCompleted(IDownloadTask task)
         {
-            var path = _localFile;
-#if UNITY_WEBGL && !UNITY_EDITOR
-            var request = UnityWebRequestAssetBundle.GetAssetBundle(path);
-            request.SendWebRequest();
-            var t = new Stopwatch();
-            t.Start();
-            while (!request.isDone)
-            {
-                await UniTask.NextFrame();
-            }
-
-            t.Stop();
-            Debug.Log($"下载ab:{path} {(t.ElapsedMilliseconds * 0.001f).ToString(CultureInfo.InvariantCulture)}s");
-
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogError($"request is failure:{path}");
-            }
-
-            var ab = DownloadHandlerAssetBundle.GetContent(request);
-            if (ab == null)
-            {
-                Debug.LogError($"ab is null:{path}");
-            }
-            else
-            {
-                LoadBundleCompleted(ab);
-            }
-#else
-            var request = AssetBundle.LoadFromFileAsync(_localFile, 0);
-            mAasyncOperation = request;
-            if (request.isDone)
-            {
-                LoadBundleCompleted(request.assetBundle);
-            }
-            else
-            {
-                Debug.Log($"加载assetbundle {DebugInfo}");
-                var source = new UniTaskCompletionSource();
-                request.completed += op =>
-                {
-                    LoadBundleCompleted(request.assetBundle);
-                    OperationStatus = OperationStatus.Succeeded;
-                    source.TrySetResult();
-                };
-                await source.Task;
-            }
-#endif
+            LoadFromFile(task.LocalPath);
         }
 
-        protected override async UniTask StartDepends()
+        private void LoadFromFile(string path)
         {
-            if (DependOps == null || DependOps.Count == 0)
-            {
-                await UniTask.CompletedTask;
-                return;
-            }
-
-            var list = ReferencePool.Get<List<UniTask>>();
-            foreach (var op in DependOps)
-            {
-                if (!op.IsDone)
-                {
-                    list.Add(op.Start());
-                }
-            }
-
-            await UniTask.WhenAll(list);
-
-            list.Clear();
-            ReferencePool.Put(list);
+            _loadBundledOperation = AssetBundle.LoadFromFileAsync(path, 0);
+            _loadBundledOperation.completed += OnLoadBundleCompleted;
         }
 
-        private bool ValidFile(string path)
+        private void OnLoadBundleCompleted(AsyncOperation op)
         {
-            var valid = true;
-            if (!AssetUtility.GetFileCRC32(path).Equals(_bundleInfo.Crc))
+            if (op is AssetBundleCreateRequest operation)
             {
-                Debug.Log("缓存文件CRC32校验不通过,重新下载");
-                valid = false;
+                SetAsset(operation.assetBundle);
+                StartDepends();
             }
-
-            if (!AssetUtility.GetFileMD5(path).Equals(_bundleInfo.MD5))
-            {
-                Debug.Log("缓存文件CRC32校验不通过,重新下载");
-                valid = false;
-            }
-
-            if (!valid && File.Exists(path)) File.Delete(path);
-
-            return valid;
         }
 
-        private void LoadBundleCompleted(AssetBundle assetBundle)
+        protected override void ProcessDependsCompleted()
         {
-            if (assetBundle == null)
-            {
-                Debug.LogError($"AssetBundle {_bundleName} 无法加载!!!");
-                if (File.Exists(_localFile)) File.Delete(_localFile);
-                StartDownload();
-            }
-            else
-            {
-                LoadAssetBundleMaterialForEditor(assetBundle);
-                SetAsset(assetBundle);
-            }
+            LoadAssetBundleMaterialForEditor((AssetBundle)Asset);
+            CompleteSuccess();
         }
 
         public override void Unload()
@@ -236,6 +153,35 @@ namespace XGAsset.Runtime.Provider
                 Debug.Log($"卸载AssetBundle:{_bundleName}");
             }
         }
+
+        protected override void InternalWaitForCompleted()
+        {
+            if (_loadBuiltInOperation is UnityWebRequestAsyncOperation op)
+            {
+                while (!op.isDone)
+                {
+                    var a = op.webRequest.downloadHandler.data;
+                    Thread.Sleep(1);
+                }
+            }
+            if (_downloadOperation is UnityWebRequestAsyncOperation op2)
+            {
+                while (!op2.isDone)
+                {
+                    var a = op2.webRequest.downloadHandler.data;
+                    Thread.Sleep(1);
+                }
+            }
+            if (_loadBundledOperation is AssetBundleCreateRequest op3)
+            {
+                while (!op3.isDone)
+                {
+                    var a = op3.assetBundle;
+                    Thread.Sleep(1);
+                }
+            }
+        }
+
 
         [Conditional("UNITY_EDITOR")]
         private async void LoadAssetBundleMaterialForEditor(AssetBundle assetBundle)

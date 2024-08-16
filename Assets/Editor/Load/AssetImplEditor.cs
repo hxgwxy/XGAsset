@@ -27,20 +27,11 @@ namespace XGAsset.Editor.Load
             return ResourcesManager.CreateHandle(new EditorAssetProvider(address));
         }
 
-        public override AssetOperationHandle LoadAssets(IList<string> address)
+        public override AssetOperationHandle LoadAssets(List<string> address)
         {
-            var list = new List<AssetAddressEntry>();
-            foreach (var addr in address)
-            {
-                list.AddRange(AssetAddressDefaultSettings.GetEntries(addr));
-            }
-
-            var batchOp = new EditorBatchProvider()
-            {
-                DependOps = list.Select(entry => new EditorAssetProvider(entry.Address)).Cast<IAsyncOperationBase>().ToList()
-            };
-            var handle = new AssetOperationHandle(batchOp);
-            batchOp.Start();
+            var provider = new EditorBatchProvider(address);
+            var handle = new AssetOperationHandle(provider);
+            provider.Start();
             return handle;
         }
 

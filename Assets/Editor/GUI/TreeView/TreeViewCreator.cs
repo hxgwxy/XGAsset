@@ -73,16 +73,6 @@ namespace XGAsset.Editor.GUI
                 },
                 new MultiColumnHeaderState.Column
                 {
-                    headerContent = new GUIContent("Group/Address Rule", "分组/地址命名规则"),
-                    headerTextAlignment = TextAlignment.Center,
-                    sortingArrowAlignment = TextAlignment.Right,
-                    sortedAscending = true,
-                    width = 150,
-                    minWidth = 60,
-                    autoResize = true
-                },
-                new MultiColumnHeaderState.Column
-                {
                     headerContent = new GUIContent("Build Rule", "打包规则"),
                     headerTextAlignment = TextAlignment.Center,
                     sortingArrowAlignment = TextAlignment.Right,

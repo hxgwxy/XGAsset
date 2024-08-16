@@ -21,6 +21,19 @@ namespace XGAsset.Runtime.Services
             }
         }
 
+        public string GetStreamingAssetsPath(string packageName, string fileName)
+        {
+            var url = Application.platform switch
+            {
+                RuntimePlatform.WindowsEditor => $"{CommonString.StreamingAssets}/{packageName}/{fileName}",
+                RuntimePlatform.Android       => $"jar:file://{Application.dataPath}!/assets/{CommonString.TargetString}/{packageName}/{fileName}",
+                RuntimePlatform.IPhonePlayer  => $"file://{Application.dataPath}/Raw/{CommonString.TargetString}/{packageName}/{fileName}",
+                RuntimePlatform.WebGLPlayer   => Path.Combine(Application.streamingAssetsPath, CommonString.TargetString, packageName, fileName),
+                _                             => throw new ArgumentOutOfRangeException()
+            };
+            return url;
+        }
+
         private async UniTask<string> QueryStreamingAssets(string packageName, string fileName)
         {
             var url = Application.platform switch

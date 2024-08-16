@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using XGAsset.Runtime.Misc;
@@ -14,6 +15,12 @@ namespace XGAsset.Runtime.Provider
         public AssetProvider(AddressInfo addressInfo)
         {
             _addressInfo = addressInfo;
+            var bundleProvider = ResourcesManager.CreateBundleProvider(addressInfo.PackageName, addressInfo.BundleName);
+            if (bundleProvider != null)
+            {
+                DependOps ??= new List<IAsyncOperationBase>();
+                DependOps.Add(bundleProvider);
+            }
         }
 
         public override T GetAsset<T>()

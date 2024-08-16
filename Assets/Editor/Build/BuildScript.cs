@@ -163,7 +163,7 @@ namespace XGAsset.Editor.Build
                 }
 
                 var shareLayout = new BundleBuildLayout();
-                shareLayout.BundleName = $"shader_{keyword.Replace("/", "_")}" + AssetAddressDefaultSettings.BundleSuffix;
+                shareLayout.BundleName = $"share_{keyword.Replace("/", "_")}" + AssetAddressDefaultSettings.BundleSuffix;
                 shareLayout.CopyToStreamingAssets = true;
                 shareLayout.AllRefAssets.AddRange(paths.Where(v => v.StartsWith(keyword)));
                 bundleLayouts.Add(shareLayout);

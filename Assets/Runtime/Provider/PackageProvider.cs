@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 using XGAsset.Runtime.Misc;
 using XGAsset.Runtime.Services;
 
@@ -21,7 +22,6 @@ namespace XGAsset.Runtime.Provider
         private string _zipFileMD5;
         private bool _ignoreCache;
         private IDownloadTask _downloadTask;
-        private UniTaskCompletionSource _source;
 
         private Dictionary<string, string> urlParams;
 
@@ -38,12 +38,12 @@ namespace XGAsset.Runtime.Provider
                 urlParams = new Dictionary<string, string> { { "t", DateTime.Now.Ticks.ToString() } };
         }
 
-        protected override async UniTask StartSelf()
+        protected override void InternalStart()
         {
-            _source ??= new UniTaskCompletionSource();
-            var path = await ResourcesManager.BuildInQueryServices.QueryAsset(_packageName, _jsonFileName, true);
+            var path = ResourcesManager.BuildInQueryServices.GetPersistentPath(_packageName, _jsonFileName);
 
-            if (ResourcesManager.HostServices.Enabled && (_ignoreCache || string.IsNullOrEmpty(path)))
+            if (ResourcesManager.HostServices.Enabled &&
+                (_ignoreCache || string.IsNullOrEmpty(path) || !File.Exists(path)))
             {
                 StartDownload();
             }
@@ -72,10 +72,6 @@ namespace XGAsset.Runtime.Provider
                 _downloadTask.Completed += OnZipDownloadCompleted;
                 _downloadTask.SetMD5(zipMD5);
             }
-            else
-            {
-                UniTask.Delay(1000).ContinueWith(StartDownload).Forget();
-            }
         }
 
         private void OnZipDownloadCompleted(IDownloadTask task)
@@ -102,14 +98,48 @@ namespace XGAsset.Runtime.Provider
 
         private void LoadManifest(string path)
         {
-            ResourcesManager.LoaderServices.LoadText(path).ContinueWith(ParseJson).Forget();
+            if (File.Exists(path))
+            {
+                ParseJson(File.ReadAllText(path));
+            }
+            else
+            {
+                using var request = UnityWebRequest.Get(path);
+                var operation = request.SendWebRequest();
+                operation.completed += OnLoadManifestCompleted;
+            }
+        }
+
+        private void LoadFromStreaming()
+        {
+            var path = ResourcesManager.BuildInQueryServices.GetStreamingAssetsPath(_packageName, _jsonFileName);
+            var request = UnityWebRequest.Get(path);
+            var operation = request.SendWebRequest();
+            operation.completed += OnLoadManifestCompleted;
+        }
+
+        private void OnLoadManifestCompleted(AsyncOperation op)
+        {
+            if (op is UnityWebRequestAsyncOperation operation)
+            {
+                var text = operation.webRequest.downloadHandler.text;
+
+                operation.webRequest.Dispose();
+                if (string.IsNullOrEmpty(text))
+                {
+                    LoadFromStreaming();
+                }
+                else
+                {
+                    ParseJson(text);
+                }
+            }
         }
 
         private void ParseJson(string json)
         {
             SetAsset(JsonUtility.FromJson<ManifestData>(json));
-            _source.TrySetResult();
-            _source = null;
+            CompleteSuccess();
         }
     }
 }

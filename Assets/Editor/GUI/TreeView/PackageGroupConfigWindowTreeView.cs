@@ -237,23 +237,7 @@ namespace XGAsset.Editor.GUI
                     // EditorGUI.LabelField(cellRect, $"{item.Data.GroupName}");
                     base.RowGUI(args);
                     break;
-                case 4:
-
-                    // if (m_collectRuleNames == null)
-                    // {
-                    //     var objs = new List<string>();
-                    //     var list = TypeCache.GetTypesDerivedFrom(typeof(ICollectRule)).ToList();
-                    //     foreach (var type in list)
-                    //     {
-                    //         objs.Add(type.Name);
-                    //     }
-                    //
-                    //     m_collectRuleNames = objs.ToArray();
-                    // }
-                    // selectCollectRule = EditorGUI.Popup(cellRect, selectCollectRule, m_collectRuleNames);
-
-                    break;
-                case 5: // pack rule
+                case 4: // pack rule
                     try
                     {
                         if (EditorGUI.DropdownButton(cellRect, new GUIContent(item.Data.PackRule), FocusType.Passive))

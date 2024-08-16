@@ -6,8 +6,8 @@ namespace XGAsset.Runtime
 {
     public struct ProgressStatus
     {
-        public int id;
-        public float Percent => TotalBytes == 0 ? 0 : (float)CompletedBytes / (float)TotalBytes;
+        public int Id;
+        public float Percent;
         public ulong CompletedBytes;
         public ulong TotalBytes;
         public bool IsValid;

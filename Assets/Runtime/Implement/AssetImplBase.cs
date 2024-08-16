@@ -8,7 +8,7 @@ namespace XGAsset.Runtime.Implement
         public abstract AssetOperationHandle Initialize();
         public abstract AssetOperationHandle LoadScene(string sceneName, LoadSceneMode mode);
         public abstract AssetOperationHandle LoadAsset(string address);
-        public abstract AssetOperationHandle LoadAssets(IList<string> address);
+        public abstract AssetOperationHandle LoadAssets(List<string> address);
         public abstract AssetOperationHandle AddPackage(string name, string version, bool ignoreCache);
         public abstract bool HasAsset(string address);
         public abstract void Unload();

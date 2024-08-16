@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
-using XGAsset.Runtime.Provider;
 
 namespace XGAsset.Runtime.Component
 {
@@ -36,9 +35,12 @@ namespace XGAsset.Runtime.Component
         [Header("引用计数")]
         internal List<string> RefCountText;
 
+        private StringBuilder stringBuilder;
+
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+            stringBuilder = new StringBuilder();
         }
 
         private void Start()
@@ -59,19 +61,33 @@ namespace XGAsset.Runtime.Component
         private void Method()
         {
             RefCountText.Clear();
+            stringBuilder.Clear();
+            
             foreach (var bundleInfo in ResourcesManager.BundleProviders)
             {
-                RefCountText.Add($"{bundleInfo.Value.RefCount} {bundleInfo.Value.DebugInfo}");
+                stringBuilder.Clear();
+                stringBuilder.Append(bundleInfo.Value.RefCount.ToString());
+                stringBuilder.Append(" ");
+                stringBuilder.Append(bundleInfo.Value.DebugInfo);
+                RefCountText.Add(stringBuilder.ToString());
             }
 
             foreach (var bundleInfo in ResourcesManager.AssetProviders)
             {
-                RefCountText.Add($"{bundleInfo.Value.RefCount} {bundleInfo.Value.DebugInfo}");
+                stringBuilder.Clear();
+                stringBuilder.Append(bundleInfo.Value.RefCount.ToString());
+                stringBuilder.Append(" ");
+                stringBuilder.Append(bundleInfo.Value.DebugInfo);
+                RefCountText.Add(stringBuilder.ToString());
             }
 
             foreach (var bundleInfo in ResourcesManager.SceneProviders)
             {
-                RefCountText.Add($"{bundleInfo.Value.RefCount} {bundleInfo.Value.DebugInfo}");
+                stringBuilder.Clear();
+                stringBuilder.Append(bundleInfo.Value.RefCount.ToString());
+                stringBuilder.Append(" ");
+                stringBuilder.Append(bundleInfo.Value.DebugInfo);
+                RefCountText.Add(stringBuilder.ToString());
             }
         }
 

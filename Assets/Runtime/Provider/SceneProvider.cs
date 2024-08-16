@@ -1,33 +1,56 @@
-using System;
-using Cysharp.Threading.Tasks;
+using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace XGAsset.Runtime.Provider
 {
     public class SceneProvider : AsyncOperationBase
     {
-        private string _sceneName;
+        private string mSceneName;
 
-        private LoadSceneMode _mode;
+        private LoadSceneMode mMode;
 
-        public override string DebugInfo => $"{GetType().Name}-{_sceneName}";
+        private AsyncOperation _mAsyncOperation;
+
+        public override string DebugInfo => $"{GetType().Name}-{mSceneName}";
 
         public SceneProvider(string sceneName, LoadSceneMode mode)
         {
-            _sceneName = sceneName;
-            _mode = mode;
+            mSceneName = sceneName;
+            mMode = mode;
+
+            var addressInfo = ResourcesManager.GetAddressInfo(sceneName);
+            var bundleProvider = ResourcesManager.CreateBundleProvider(addressInfo.PackageName, addressInfo.BundleName);
+            if (bundleProvider != null)
+            {
+                DependOps ??= new List<IAsyncOperationBase>();
+                DependOps.Add(bundleProvider);
+            }
         }
 
-        protected override UniTask StartSelf()
+        protected override void ProcessDependsCompleted()
         {
-            var source = new UniTaskCompletionSource();
-            var asyncOperation = SceneManager.LoadSceneAsync(_sceneName, _mode);
-            asyncOperation.completed += op =>
+            _mAsyncOperation = SceneManager.LoadSceneAsync(mSceneName, mMode);
+            _mAsyncOperation.completed += OnLoadSceneCompleted;
+        }
+
+        private void OnLoadSceneCompleted(AsyncOperation op)
+        {
+            CompleteSuccess();
+        }
+
+        protected override void InternalWaitForCompleted()
+        {
+        }
+
+        protected override ProgressStatus GetProgressStatus()
+        {
+            return new ProgressStatus()
             {
-                OperationStatus = OperationStatus.Succeeded;
-                source.TrySetResult();
+                Id = GetHashCode(),
+                IsValid = true,
+                Percent = _mAsyncOperation?.progress ?? 0,
             };
-            return source.Task;
         }
     }
 }

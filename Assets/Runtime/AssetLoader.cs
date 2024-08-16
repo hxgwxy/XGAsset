@@ -132,7 +132,7 @@ namespace XGAsset.Runtime
             return AssetImpl.LoadAsset(address);
         }
 
-        public static AssetOperationHandle LoadAssetsAsync(IList<string> address)
+        public static AssetOperationHandle LoadAssetsAsync(List<string> address)
         {
             return AssetImpl.LoadAssets(address);
         }

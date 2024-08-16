@@ -26,7 +26,7 @@ namespace XGAsset.Runtime
             return op.GetAsset<T>();
         }
 
-        public IList<T> GetAssets<T>()
+        public List<T> GetAssets<T>()
         {
             return op?.GetAssets<T>();
         }
@@ -38,13 +38,13 @@ namespace XGAsset.Runtime
             await UniTask.CompletedTask;
         }
 
-        public async UniTask<T> AwaitResult<T>()
+        public async UniTask<T> AwaitResultAsync<T>()
         {
             await op.Task;
             return await op.GetAssetAsync<T>();
         }
 
-        public async UniTask<IList<T>> AwaitResults<T>()
+        public async UniTask<IList<T>> AwaitResultsAsync<T>()
         {
             if (op != null)
             {
@@ -70,14 +70,18 @@ namespace XGAsset.Runtime
 
             ulong totalBytes = 0;
             ulong completedBytes = 0;
+            float percent = 0;
             foreach (var status in set)
             {
                 if (status.IsValid)
                 {
                     completedBytes += status.CompletedBytes;
                     totalBytes += status.TotalBytes;
+                    percent += status.Percent;
                 }
             }
+
+            percent /= set.Count;
 
             set.Clear();
             ReferencePool.Put(set);
@@ -87,6 +91,7 @@ namespace XGAsset.Runtime
                 IsValid = true,
                 TotalBytes = totalBytes,
                 CompletedBytes = completedBytes,
+                Percent = percent,
             };
         }
 
@@ -102,7 +107,7 @@ namespace XGAsset.Runtime
                 comp = bindObj.AddComponent<GameObjectDestroyListener>();
             }
 
-            comp.DestroyEvent += Release;
+            comp.OnDestroyEvent += Release;
         }
 
         internal void AddRef()
@@ -126,23 +131,27 @@ namespace XGAsset.Runtime
 #if UNITY_WEBGL
             throw new Exception("AwaitSync no support webgl");
 #endif
-            while (!op.IsDone)
-            {
-                Thread.Sleep(1);
-            }
+            op.WaitForCompleted();
         }
 
-        public T AwaitSync<T>()
+        public T AwaitAssetSync<T>()
         {
 #if UNITY_WEBGL
             throw new Exception("AwaitSync no support webgl");
 #endif
-            while (!op.IsDone)
-            {
-                Thread.Sleep(1);
-            }
+            op.WaitForCompleted();
 
             return GetAsset<T>();
+        }
+
+        public IList<T> AwaitAssetsSync<T>()
+        {
+#if UNITY_WEBGL
+            throw new Exception("AwaitSync no support webgl");
+#endif
+            op.WaitForCompleted();
+
+            return GetAssets<T>();
         }
     }
 }
